@@ -14,8 +14,8 @@ export default function Page() {
         priority
       />
 
-      <div className="relative z-10 text-center px-4 flex flex-col items-center justify-center min-h-[60vh] sm:min-h-[70vh] lg:min-h-[80vh]">
-        <h1 className="text-4xl sm:text-6xl lg:text-8xl text-primary-50 mb-6 sm:mb-8 lg:mb-10 tracking-tight font-normal">
+      <div className="relative z-10 text-center">
+        <h1 className="sm:text-8xl text-4xl text-primary-50 mb-10 tracking-tight font-normal">
           Welcome to paradise.
         </h1>
         <Link
