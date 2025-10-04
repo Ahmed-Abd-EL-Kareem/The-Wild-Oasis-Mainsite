@@ -25,7 +25,7 @@ function ReservationForm({ cabin, user }) {
 
   const createBookingWithData = createBooking.bind(null, bookingData);
   return (
-    <div className="scale-[1.01]">
+    <div className="scale-[1.01] overflow-hidden">
       <div className="bg-primary-800 text-primary-300 px-4 sm:px-8 lg:px-16 py-2 flex justify-between items-center">
         <p className="text-sm sm:text-base">Logged in as</p>
 
@@ -52,7 +52,7 @@ function ReservationForm({ cabin, user }) {
           await createBookingWithData(formData);
           restRange();
         }}
-        className="bg-primary-900 py-6 sm:py-8 lg:py-10 px-4 sm:px-8 lg:px-16 text-base sm:text-lg flex gap-4 sm:gap-5 flex-col"
+        className="bg-primary-900 h-full py-6 sm:py-8 lg:py-10 px-4 sm:px-8 lg:px-16 text-base sm:text-lg flex gap-4 sm:gap-5 flex-col"
       >
         <div className="space-y-2">
           <label htmlFor="numGuests">How many guests?</label>

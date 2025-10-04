@@ -64,3 +64,8 @@
   --rdp-background-color: theme(--color-accent-600) !important;
   margin: 0 !important;
 }
+.rdp-months {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
