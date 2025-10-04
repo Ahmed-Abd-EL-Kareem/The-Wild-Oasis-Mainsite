@@ -3,7 +3,7 @@ import Link from "next/link";
 import background from "@/public/bg.png";
 export default function Page() {
   return (
-    <main className="mt-16 sm:mt-20 lg:mt-24 relative min-h-[60vh] sm:min-h-[70vh] lg:min-h-[80vh]">
+    <main className="mt-24">
       <Image
         src={background}
         fill
