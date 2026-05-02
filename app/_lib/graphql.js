@@ -1,13 +1,24 @@
 const RAW_API_URL =
   process.env.NEXT_PUBLIC_GRAPHQL_URL ||
-  process.env.NEXT_PUBLIC_API_URL;
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.GRAPHQL_URL ||
+  process.env.API_URL;
 
-const GRAPHQL_ENDPOINT = RAW_API_URL.endsWith("/graphql")
-  ? RAW_API_URL
-  : `${RAW_API_URL}/graphql`;
+function getGraphqlEndpoint() {
+  if (!RAW_API_URL) {
+    throw new Error(
+      "Missing API URL. Set NEXT_PUBLIC_GRAPHQL_URL or NEXT_PUBLIC_API_URL."
+    );
+  }
+
+  return RAW_API_URL.endsWith("/graphql")
+    ? RAW_API_URL
+    : `${RAW_API_URL}/graphql`;
+}
 
 export async function executeGraphQL({ query, variables = {}, accessToken }) {
-  const response = await fetch(GRAPHQL_ENDPOINT, {
+  const graphqlEndpoint = getGraphqlEndpoint();
+  const response = await fetch(graphqlEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
