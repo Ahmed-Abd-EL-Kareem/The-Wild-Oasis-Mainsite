@@ -5,11 +5,20 @@ import { auth } from "@/app/_lib/auth";
 import LoginMessage from "@/app/_components/LoginMessage";
 
 export default async function Reservation({ cabin }) {
-  const [settings, bookedDates] = await Promise.all([
-    getSettings(),
-    getBookedDatesByCabinId(cabin.id),
-  ]);
   const session = await auth();
+
+  let settings = { minBookingLength: 1, maxBookingLength: 7 };
+  let bookedDates = [];
+
+  try {
+    [settings, bookedDates] = await Promise.all([
+      getSettings(session?.accessToken),
+      getBookedDatesByCabinId(cabin.id),
+    ]);
+  } catch (error) {
+    console.warn("Failed to load settings, using defaults:", error.message);
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 border border-primary-800 min-h-[400px]">
       <DateSelector

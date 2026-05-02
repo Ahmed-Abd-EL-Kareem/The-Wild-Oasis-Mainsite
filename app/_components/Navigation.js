@@ -4,6 +4,11 @@ import Image from "next/image";
 
 export default async function Navigation() {
   const session = await auth();
+  const avatarUrl = session?.user?.image || "";
+  const canRenderAvatarWithNextImage =
+    avatarUrl &&
+    /^https?:\/\//i.test(avatarUrl) &&
+    !avatarUrl.includes("pin.it/");
   // console.log(session);
   return (
     <nav className="z-10 text-lg sm:text-xl">
@@ -25,19 +30,25 @@ export default async function Navigation() {
           </Link>
         </li>
         <li>
-          {session?.user?.image ? (
+          {avatarUrl ? (
             <Link
               href="/account"
               className="hover:text-accent-400 transition-colors flex items-center gap-2 sm:gap-4"
             >
               <div className="relative w-6 h-6 sm:w-8 sm:h-8">
-                <Image
-                  src={session.user.image}
-                  className="h-6 sm:h-8 rounded-full"
-                  fill
-                  alt={session.user.name}
-                  referrerPolicy="no-referrer"
-                />
+                {canRenderAvatarWithNextImage ? (
+                  <Image
+                    src={avatarUrl}
+                    className="h-6 sm:h-8 rounded-full object-cover"
+                    fill
+                    alt={session.user.name}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-primary-700 text-primary-100 grid place-items-center text-xs font-semibold">
+                    {(session?.user?.name || "G").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
               </div>
               <span className="hidden sm:inline">Guest area</span>
               <span className="sm:hidden">Account</span>

@@ -12,19 +12,17 @@ export const formatDistanceFromNow = (dateStr) =>
 function ReservationCard({ booking, onDelete }) {
   const {
     id,
-    guestId,
     startDate,
     endDate,
     numNights,
     totalPrice,
     numGuests,
-    status,
-    created_at,
-    cabins: { name, image },
+    createdAt,
+    cabin: { name, image },
   } = booking;
 
   return (
-    <div className="flex flex-col sm:flex-row border border-primary-800">
+    <div className="reservation-card flex flex-col sm:flex-row border border-primary-800">
       <div className="relative h-48 sm:h-32 sm:aspect-square">
         <Image
           fill
@@ -69,7 +67,7 @@ function ReservationCard({ booking, onDelete }) {
             </p>
           </div>
           <p className="text-xs sm:text-sm text-primary-400 sm:ml-auto">
-            Booked {format(new Date(created_at), "EEE, MMM dd yyyy, p")}
+            Booked {format(new Date(createdAt), "EEE, MMM dd yyyy, p")}
           </p>
         </div>
       </div>

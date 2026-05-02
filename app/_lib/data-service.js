@@ -1,144 +1,182 @@
-import { eachDayOfInterval } from "date-fns";
-import { supabase } from "./supabase";
+import { executeGraphQL } from "./graphql";
 import { notFound } from "next/navigation";
 /////////////
 // GET
 
 export async function getCabin(id) {
-  const { data, error } = await supabase
-    .from("cabins")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  // For testing
-  // await new Promise((res) => setTimeout(res, 1000));
-
-  if (error) {
+  try {
+    const data = await executeGraphQL({
+      query: `
+        query GetCabinById($id: Float!) {
+          getCabinById(id: $id) {
+            id
+            name
+            maxCapacity
+            regularPrice
+            discount
+            description
+            image
+          }
+        }
+      `,
+      variables: { id: Number(id) },
+    });
+    return data.getCabinById;
+  } catch (error) {
     console.error(error);
     notFound();
   }
-
-  return data;
 }
 
 export async function getCabinPrice(id) {
-  const { data, error } = await supabase
-    .from("cabins")
-    .select("regularPrice, discount")
-    .eq("id", id)
-    .single();
-
-  if (error) {
-    console.error(error);
-  }
-
-  return data;
+  const cabin = await getCabin(id);
+  return { regularPrice: cabin.regularPrice, discount: cabin.discount };
 }
 
 export const getCabins = async function () {
-  const { data, error } = await supabase
-    .from("cabins")
-    .select("id, name, maxCapacity, regularPrice, discount, image")
-    .order("name");
+  const data = await executeGraphQL({
+    query: `
+      query GetAllCabins($sort: CabinSortArgs, $pagination: PaginationArgs) {
+        getAllCabins(sort: $sort, pagination: $pagination) {
+          data {
+            id
+            name
+            maxCapacity
+            regularPrice
+            discount
+            description
+            image
+            createdAt
+          }
+          total
+          page
+          limit
+          totalPages
+        }
+      }
+    `,
+    variables: {
+      sort: { field: "PRICE", order: "ASC" },
+      pagination: { page: 1, limit: 100 },
+    },
+  });
 
-  if (error) {
-    console.error(error);
-    throw new Error("Cabins could not be loaded");
-  }
-
-  return data;
+  const payload = data.getAllCabins;
+  if (Array.isArray(payload)) return payload;
+  return payload?.data || [];
 };
 
 // Guests are uniquely identified by their email address
-export async function getGuest(email) {
-  const { data, error } = await supabase
-    .from("guests")
-    .select("*")
-    .eq("email", email)
-    .single();
-
-  // No error here! We handle the possibility of no guest in the sign in callback
-  return data;
+export async function getGuest(email, accessToken) {
+  const data = await executeGraphQL({
+    query: `
+      query FindOneByEmail($email: String!) {
+        findOneByEmail(email: $email) {
+          id
+          fullName
+          email
+          role
+          avatar
+          nationalID
+          nationality
+          createdAt
+        }
+      }
+    `,
+    variables: { email },
+    accessToken,
+  });
+  return data.findOneByEmail;
 }
 
-export async function getBooking(id) {
-  const { data, error, count } = await supabase
-    .from("bookings")
-    .select("* ")
-    .eq("id", id)
-    .single();
-
-  if (error) {
-    console.error(error);
-    throw new Error("Booking could not get loaded");
-  }
-  return data;
+export async function getBooking(id, accessToken) {
+  const bookings = await getBookings(accessToken);
+  const booking = bookings.find((item) => item.id === Number(id));
+  if (!booking) throw new Error("Booking could not get loaded");
+  return booking;
 }
 
-export async function getBookings(guestId) {
-  const { data, error, count } = await supabase
-    .from("bookings")
-    // We actually also need data on the cabins as well. But let's ONLY take the data that we actually need, in order to reduce downloaded data.
-    .select(
-      "id, created_at, startDate, endDate, numNights, numGuests, totalPrice, guestId, cabinId, cabins(name, image)"
-    )
-    .eq("guestId", guestId)
-    .order("startDate");
+export async function getBookings(accessToken) {
+  const data = await executeGraphQL({
+    query: `
+      query GetMyBookings($sort: BookingSortArgs, $pagination: PaginationArgs) {
+        getMyBookings(sort: $sort, pagination: $pagination) {
+          data {
+            id
+            startDate
+            endDate
+            numNights
+            numGuests
+            totalPrice
+            status
+            observations
+            createdAt
+            cabin {
+              id
+              name
+              image
+            }
+          }
+          total
+          page
+          limit
+          totalPages
+        }
+      }
+    `,
+    variables: {
+      sort: { field: "START_DATE", order: "DESC" },
+      pagination: { page: 1, limit: 100 },
+    },
+    accessToken,
+  });
 
-  if (error) {
-    console.error(error);
-    throw new Error("Bookings could not get loaded");
-  }
-
-  return data;
+  const payload = data.getMyBookings;
+  if (Array.isArray(payload)) return payload;
+  return payload?.data || [];
 }
 
 export async function getBookedDatesByCabinId(cabinId) {
-  let today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  today = today.toISOString();
-
-  // Getting all bookings
-  const { data, error } = await supabase
-    .from("bookings")
-    .select("*")
-    .eq("cabinId", cabinId)
-    .or(`startDate.gte.${today},status.eq.checked-in`);
-
-  if (error) {
-    console.error(error);
-    throw new Error("Bookings could not get loaded");
-  }
-
-  // Converting to actual dates to be displayed in the date picker
-  const bookedDates = data
-    .map((booking) => {
-      return eachDayOfInterval({
-        start: new Date(booking.startDate),
-        end: new Date(booking.endDate),
-      });
-    })
-    .flat();
-
-  return bookedDates;
+  // The public API currently doesn't expose cabin-specific unavailable dates.
+  // Return an empty list so booking UI keeps working until backend query is added.
+  return [];
 }
 
-export async function getSettings() {
-  const { data, error } = await supabase.from("settings").select("*").single();
+export async function getSettings(accessToken) {
+  const query = `
+    query GetSettings {
+      getSettings {
+        id
+        minBookingLength
+        maxBookingLength
+        maxGuestsPerBooking
+        breakfastPrice
+        updatedAt
+      }
+    }
+  `;
 
-  if (error) {
-    console.error(error);
-    throw new Error("Settings could not be loaded");
+  try {
+    const data = await executeGraphQL({
+      query,
+      accessToken,
+    });
+    return data.getSettings;
+  } catch (error) {
+    if (!accessToken || !String(error?.message).includes("Unauthorized")) {
+      throw error;
+    }
+
+    // Fallback in case backend marks settings as public on some environments.
+    const data = await executeGraphQL({ query });
+    return data.getSettings;
   }
-
-  return data;
 }
 
 export async function getCountries() {
   try {
     const res = await fetch(
-      "https://restcountries.com/v2/all?fields=name,flag"
+      "https://restcountries.com/v2/all?fields=name,flag,alpha2Code"
     );
     const countries = await res.json();
     return countries;
@@ -147,79 +185,3 @@ export async function getCountries() {
   }
 }
 
-/////////////
-// CREATE
-
-export async function createGuest(newGuest) {
-  const { data, error } = await supabase.from("guests").insert([newGuest]);
-
-  if (error) {
-    console.error(error);
-    throw new Error("Guest could not be created");
-  }
-
-  return data;
-}
-
-// export async function createBooking(newBooking) {
-//   const { data, error } = await supabase
-//     .from("bookings")
-//     .insert([newBooking])
-//     // So that the newly created object gets returned!
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     throw new Error("Booking could not be created");
-//   }
-
-//   return data;
-// }
-
-/////////////
-// UPDATE
-
-// The updatedFields is an object which should ONLY contain the updated data
-// export async function updateGuest(id, updatedFields) {
-//   const { data, error } = await supabase
-//     .from("guests")
-//     .update(updatedFields)
-//     .eq("id", id)
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     throw new Error("Guest could not be updated");
-//   }
-//   return data;
-// }
-
-// export async function updateBooking(id, updatedFields) {
-//   const { data, error } = await supabase
-//     .from("bookings")
-//     .update(updatedFields)
-//     .eq("id", id)
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     throw new Error("Booking could not be updated");
-//   }
-//   return data;
-// }
-
-// /////////////
-// // DELETE
-
-// export async function deleteBooking(id) {
-//   const { data, error } = await supabase.from("bookings").delete().eq("id", id);
-
-//   if (error) {
-//     console.error(error);
-//     throw new Error("Booking could not be deleted");
-//   }
-//   return data;
-// }

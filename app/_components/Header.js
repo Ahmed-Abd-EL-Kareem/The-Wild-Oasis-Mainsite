@@ -1,15 +1,7 @@
 import Navigation from "@/app/_components/Navigation";
 import Logo from "@/app/_components/Logo";
+import HeaderClient from "@/app/_components/HeaderClient";
 
-function Header() {
-  return (
-    <header className="border-b border-primary-900 px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-      <div className="flex justify-between items-center max-w-7xl mx-auto">
-        <Logo />
-        <Navigation />
-      </div>
-    </header>
-  );
+export default function Header() {
+  return <HeaderClient logo={<Logo />} navigation={<Navigation />} />;
 }
-
-export default Header;

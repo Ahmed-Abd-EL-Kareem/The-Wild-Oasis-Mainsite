@@ -1,24 +1,24 @@
 import SelectCountry from "@/app/_components/SelectCountry";
 import UpdateProfileForm from "@/app/_components/UpdateProfileForm";
 import { auth } from "@/app/_lib/auth";
-import { getGuest } from "@/app/_lib/data-service";
+import ProfileClient from "./ProfileClient";
 
 export const metadata = {
   title: "Update profile",
 };
+
 export default async function Page() {
   const session = await auth();
-  const guest = await getGuest(session.user.email);
-  return (
-    <div>
-      <h2 className="font-semibold text-xl sm:text-2xl text-accent-400 mb-4">
-        Update your guest profile
-      </h2>
+  const guest = {
+    fullName: session.user.name,
+    email: session.user.email,
+    nationality: session.user.nationality,
+    nationalID: session.user.nationalID,
+    avatar: session.user.image,
+  };
 
-      <p className="text-base sm:text-lg mb-6 sm:mb-8 text-primary-200">
-        Providing the following information will make your check-in process
-        faster and smoother. See you soon!
-      </p>
+  return (
+    <ProfileClient>
       <UpdateProfileForm guest={guest}>
         <SelectCountry
           name="nationality"
@@ -27,6 +27,6 @@ export default async function Page() {
           defaultCountry={guest.nationality}
         />
       </UpdateProfileForm>
-    </div>
+    </ProfileClient>
   );
 }

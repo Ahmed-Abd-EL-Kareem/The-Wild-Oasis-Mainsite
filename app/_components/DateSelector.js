@@ -11,6 +11,7 @@ import "react-day-picker/dist/style.css";
 import { useReservation } from "./ReservationContext";
 
 function isAlreadyBooked(range, datesArr) {
+  if (!range || !datesArr || !datesArr.length) return false;
   return (
     range.from &&
     range.to &&
@@ -25,11 +26,14 @@ function DateSelector({ settings, cabin, bookedDates }) {
 
   const displayRange = isAlreadyBooked(range, bookedDates) ? {} : range;
 
-  const { regularPrice, discount } = cabin;
-  const numNights = differenceInDays(displayRange.to, displayRange.from);
-  const cabinPrice = numNights * (regularPrice - discount);
+  const { regularPrice, discount } = cabin || {};
+  const numNights = displayRange?.to && displayRange?.from
+    ? differenceInDays(displayRange.to, displayRange.from)
+    : 0;
+  const cabinPrice = numNights * ((regularPrice || 0) - (discount || 0));
 
-  const { minBookingLength, maxBookingLength } = settings;
+  const { minBookingLength = 1, maxBookingLength = 7 } = settings || {};
+  const safeBookedDates = Array.isArray(bookedDates) ? bookedDates : [];
 
   return (
     <div className="flex flex-col justify-between">
@@ -47,7 +51,7 @@ function DateSelector({ settings, cabin, bookedDates }) {
         numberOfMonths={2}
         disabled={(curDate) =>
           isPast(curDate) ||
-          bookedDates.some((date) => isSameDay(date, curDate))
+          safeBookedDates.some((date) => isSameDay(date, curDate))
         }
       />
 

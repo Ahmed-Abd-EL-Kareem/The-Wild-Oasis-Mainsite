@@ -55,6 +55,18 @@
   }
 }
 
+.page-transition-container {
+  will-change: opacity;
+}
+
+.cabin-card {
+  will-change: transform, opacity;
+}
+
+.reservation-card {
+  will-change: transform, opacity;
+}
+
 /* For data picker */
 .rdp {
   --rdp-cell-size: 32px !important;

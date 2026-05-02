@@ -7,6 +7,8 @@ const nextConfig = {
         "https://aurbgdomasevbusqekah.supabase.co/storage/v1/object/public/cabin-images/**"
       ),
       new URL("https://lh3.googleusercontent.com/**"),
+      new URL("https://res.cloudinary.com/**"),
+      new URL("https://pin.it/**"),
     ],
     qualities: [80, 100],
   },

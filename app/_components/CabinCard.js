@@ -1,18 +1,43 @@
+"use client";
+import { useRef } from "react";
 import { UsersIcon } from "@heroicons/react/24/solid";
 import Image from "next/image";
 import Link from "next/link";
+import gsap from "gsap";
 
 function CabinCard({ cabin }) {
   const { id, name, maxCapacity, regularPrice, discount, image } = cabin;
+  const cardRef = useRef(null);
+
+  const handleHover = () => {
+    gsap.to(cardRef.current, {
+      scale: 1.02,
+      duration: 0.3,
+      ease: "power2.out",
+    });
+  };
+
+  const handleLeave = () => {
+    gsap.to(cardRef.current, {
+      scale: 1,
+      duration: 0.3,
+      ease: "power2.out",
+    });
+  };
 
   return (
-    <div className="flex flex-col sm:flex-row border-primary-800 border">
-      <div className="flex-1 relative h-48 sm:h-auto">
+    <div
+      ref={cardRef}
+      onMouseEnter={handleHover}
+      onMouseLeave={handleLeave}
+      className="cabin-card flex flex-col sm:flex-row border-primary-800 border"
+    >
+      <div className="flex-1 relative h-48 sm:h-auto overflow-hidden">
         <Image
           src={image}
           fill
           alt={`Cabin ${name}`}
-          className="object-cover border-b sm:border-b-0 sm:border-r border-primary-800"
+          className="object-cover border-b sm:border-b-0 sm:border-r border-primary-800 transition-transform duration-500 hover:scale-110"
         />
       </div>
 

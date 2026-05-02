@@ -1,8 +1,9 @@
 "use client";
 import { createContext, useContext, useState } from "react";
 
-const ReservationContext = createContext();
+const ReservationContext = createContext(null);
 const initialState = { from: undefined, to: undefined };
+
 function ReservationProvider({ children }) {
   const [range, setRange] = useState(initialState);
   const restRange = () => setRange(initialState);
@@ -15,8 +16,12 @@ function ReservationProvider({ children }) {
 
 function useReservation() {
   const context = useContext(ReservationContext);
-  if (context === undefined) {
-    throw new Error("useReservation must be used within a ReservationProvider");
+  if (context === null || context === undefined) {
+    return {
+      range: initialState,
+      setRange: () => {},
+      restRange: () => {},
+    };
   }
   return context;
 }
