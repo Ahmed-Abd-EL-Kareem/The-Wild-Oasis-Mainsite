@@ -1,7 +1,6 @@
 const RAW_API_URL =
   process.env.NEXT_PUBLIC_GRAPHQL_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://cabins-nest-js-back-end-production.up.railway.app/graphql";
+  process.env.NEXT_PUBLIC_API_URL;
 
 const GRAPHQL_ENDPOINT = RAW_API_URL.endsWith("/graphql")
   ? RAW_API_URL
