@@ -34,36 +34,41 @@ export async function getCabinPrice(id) {
 }
 
 export const getCabins = async function () {
-  const data = await executeGraphQL({
-    query: `
-      query GetAllCabins($sort: CabinSortArgs, $pagination: PaginationArgs) {
-        getAllCabins(sort: $sort, pagination: $pagination) {
-          data {
-            id
-            name
-            maxCapacity
-            regularPrice
-            discount
-            description
-            image
-            createdAt
+  try {
+    const data = await executeGraphQL({
+      query: `
+        query GetAllCabins($sort: CabinSortArgs, $pagination: PaginationArgs) {
+          getAllCabins(sort: $sort, pagination: $pagination) {
+            data {
+              id
+              name
+              maxCapacity
+              regularPrice
+              discount
+              description
+              image
+              createdAt
+            }
+            total
+            page
+            limit
+            totalPages
           }
-          total
-          page
-          limit
-          totalPages
         }
-      }
-    `,
-    variables: {
-      sort: { field: "PRICE", order: "ASC" },
-      pagination: { page: 1, limit: 100 },
-    },
-  });
+      `,
+      variables: {
+        sort: { field: "PRICE", order: "ASC" },
+        pagination: { page: 1, limit: 100 },
+      },
+    });
 
-  const payload = data.getAllCabins;
-  if (Array.isArray(payload)) return payload;
-  return payload?.data || [];
+    const payload = data.getAllCabins;
+    if (Array.isArray(payload)) return payload;
+    return payload?.data || [];
+  } catch (error) {
+    console.error("Failed to load cabins", error);
+    return [];
+  }
 };
 
 // Guests are uniquely identified by their email address
