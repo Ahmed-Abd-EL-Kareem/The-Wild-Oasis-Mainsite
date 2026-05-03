@@ -76,9 +76,22 @@ const authConfig = {
       return !!auth?.user;
     },
     async jwt({ token, account, trigger, session, user }) {
-      if (account?.provider === "google" && account.id_token) {
-        const data = await executeGraphQL({
-          query: `
+      // Exchange Google tokens for your API session. The Nest backend verifies the
+      // ID token's `aud` claim — it MUST use the same Google OAuth Web Client ID as
+      // AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET here, or you get "Google token verification failed".
+      if (account?.provider === "google") {
+        const googleIdToken = account.id_token;
+        if (!googleIdToken) {
+          console.error(
+            "[auth] Google account payload missing id_token; keys:",
+            account ? Object.keys(account) : []
+          );
+          throw new Error("Google sign-in did not return an ID token.");
+        }
+
+        try {
+          const data = await executeGraphQL({
+            query: `
             mutation GoogleLogin($googleTokenInput: GoogleTokenDto!) {
               googleLogin(googleTokenInput: $googleTokenInput) {
                 accessToken
@@ -96,16 +109,22 @@ const authConfig = {
               }
             }
           `,
-          variables: {
-            googleTokenInput: {
-              token: account.id_token,
+            variables: {
+              googleTokenInput: {
+                token: googleIdToken,
+              },
             },
-          },
-        });
+          });
 
-        token.backendAccessToken = data.googleLogin.accessToken;
-        token.backendRefreshToken = data.googleLogin.refreshToken;
-        token.backendUser = data.googleLogin.user;
+          token.backendAccessToken = data.googleLogin.accessToken;
+          token.backendRefreshToken = data.googleLogin.refreshToken;
+          token.backendUser = data.googleLogin.user;
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Google backend login failed";
+          console.error("[auth] googleLogin mutation failed:", message);
+          throw err;
+        }
       }
 
       if (account?.provider === "credentials" && user) {
