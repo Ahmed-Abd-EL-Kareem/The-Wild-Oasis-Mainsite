@@ -4,6 +4,8 @@ import Credentials from "next-auth/providers/credentials";
 import { executeGraphQL } from "./graphql";
 
 const authConfig = {
+  // Vercel / Auth.js: set AUTH_SECRET (preferred) or NEXTAUTH_SECRET — same value locally and in prod.
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   // Required on Vercel (and other hosts behind a proxy) so the OAuth redirect URL
   // matches your public site URL instead of an internal host.
   trustHost: true,
