@@ -16,11 +16,15 @@ export async function generateMetadata({ params }) {
   };
 }
 export async function generateStaticParams() {
-  const cabins = await getCabins();
-  const id = cabins.map((cabin) => ({
-    cabinId: String(cabin.id),
-  }));
-  return id;
+  try {
+    const cabins = await getCabins();
+    return cabins.map((cabin) => ({
+      cabinId: String(cabin.id),
+    }));
+  } catch {
+    // Don't fail the whole build if API env is unavailable at build time.
+    return [];
+  }
 }
 export default async function Page({ params }) {
   const { cabinId } = await params; // ✅ await params first

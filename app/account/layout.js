@@ -4,7 +4,7 @@ import SideNavigation from "@/app/_components/SideNavigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
-export default function layout({ children }) {
+export default function AccountLayout({ children }) {
   const layoutRef = useRef(null);
 
   useGSAP(() => {

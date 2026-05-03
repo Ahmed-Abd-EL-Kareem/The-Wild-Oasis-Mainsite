@@ -3,7 +3,28 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { executeGraphQL } from "./graphql";
 
+/** Build canonical site origin for post-OAuth redirects (signIn returning a URL string). */
+function getAuthDeploymentOrigin() {
+  const explicit = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+  if (explicit?.trim()) return explicit.trim().replace(/\/$/, "");
+  const vercelHost = process.env.VERCEL_URL?.trim();
+  if (vercelHost)
+    return `https://${vercelHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return "";
+}
+
+const GOOGLE_ERRORS = Object.freeze({
+  verify: "google_verify",
+  tokenMissing: "google_no_id_token",
+  backend: "google_backend",
+});
+
 const authConfig = {
+  // Vercel / Auth.js: set AUTH_SECRET (preferred) or NEXTAUTH_SECRET — same value locally and in prod.
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  // Required on Vercel (and other hosts behind a proxy) so the OAuth redirect URL
+  // matches your public site URL instead of an internal host.
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
@@ -72,8 +93,24 @@ const authConfig = {
     authorized({ auth }) {
       return !!auth?.user;
     },
-    async jwt({ token, account, trigger, session, user }) {
-      if (account?.provider === "google" && account.id_token) {
+    /**
+     * Per integration guide: send `account.id_token` to `googleLogin` here (not only in jwt).
+     * Mutate `user` with API tokens + profile so the first `jwt` call can persist them.
+     */
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") return true;
+
+      const idToken = account.id_token;
+      if (!idToken) {
+        console.error(
+          "[auth] Google signIn missing id_token; account keys:",
+          account ? Object.keys(account) : []
+        );
+        const base = getAuthDeploymentOrigin();
+        return base ? `${base}/login?error=${GOOGLE_ERRORS.tokenMissing}` : false;
+      }
+
+      try {
         const data = await executeGraphQL({
           query: `
             mutation GoogleLogin($googleTokenInput: GoogleTokenDto!) {
@@ -94,15 +131,47 @@ const authConfig = {
             }
           `,
           variables: {
-            googleTokenInput: {
-              token: account.id_token,
-            },
+            googleTokenInput: { token: idToken },
           },
         });
 
-        token.backendAccessToken = data.googleLogin.accessToken;
-        token.backendRefreshToken = data.googleLogin.refreshToken;
-        token.backendUser = data.googleLogin.user;
+        const bu = data.googleLogin.user;
+        user.id = String(bu.id);
+        user.name = bu.fullName ?? user.name;
+        user.email = bu.email ?? user.email;
+        user.image = bu.avatar ?? user.image;
+        user.role = bu.role;
+        user.nationality = bu.nationality ?? "";
+        user.nationalID = bu.nationalID ?? "";
+        user.accessToken = data.googleLogin.accessToken;
+        user.refreshToken = data.googleLogin.refreshToken;
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Google backend login failed";
+        console.error("[auth] googleLogin (signIn) failed:", message);
+        const base = getAuthDeploymentOrigin();
+        if (!base) return false;
+
+        const code = message.includes("verification failed")
+          ? GOOGLE_ERRORS.verify
+          : GOOGLE_ERRORS.backend;
+        return `${base}/login?error=${encodeURIComponent(code)}`;
+      }
+    },
+    async jwt({ token, account, trigger, session, user }) {
+      if (account?.provider === "google" && user) {
+        token.backendAccessToken = user.accessToken;
+        token.backendRefreshToken = user.refreshToken;
+        token.backendUser = {
+          id: user.id,
+          fullName: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.image,
+          nationality: user.nationality ?? "",
+          nationalID: user.nationalID ?? "",
+        };
       }
 
       if (account?.provider === "credentials" && user) {

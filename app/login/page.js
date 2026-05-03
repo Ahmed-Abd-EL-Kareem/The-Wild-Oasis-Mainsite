@@ -10,6 +10,7 @@ import { useGSAP } from "@gsap/react";
 export default function Page() {
   const [activeTab, setActiveTab] = useState("login");
   const [successMessage, setSuccessMessage] = useState("");
+  const [oauthErrorMessage, setOauthErrorMessage] = useState("");
   const pageRef = useRef(null);
   const searchParams = useSearchParams();
 
@@ -17,6 +18,30 @@ export default function Page() {
     if (searchParams?.get("registered") === "1") {
       setActiveTab("login");
       setSuccessMessage("Account created successfully! Please sign in.");
+    }
+
+    const errParam = searchParams?.get("error");
+    if (!errParam) {
+      setOauthErrorMessage("");
+    } else {
+      const code = decodeURIComponent(errParam.replace(/\+/g, " "));
+      const messages = {
+        google_verify:
+          "Your API rejected the Google ID token. On Railway/Nest set the env used to verify tokens (often GOOGLE_CLIENT_ID) to the exact same OAuth Web Client ID as AUTH_GOOGLE_ID on Vercel, redeploy the API, then retry. Until then use email/password if you already have an account.",
+        google_backend:
+          "The API returned an error when linking Google Sign-In. Try again later or use email/password.",
+        google_no_id_token:
+          "Google did not return an ID token. Check scopes (openid profile email) and your provider setup.",
+        AccessDenied:
+          "Sign-in was denied. If logs show «Google token verification failed», sync the Railway Google Client ID with Vercel AUTH_GOOGLE_ID and redeploy the API.",
+      };
+      if (code === "OAuthAccountNotLinked") {
+        setOauthErrorMessage(
+          "That Google account is not linked. Sign in another way."
+        );
+      } else {
+        setOauthErrorMessage(messages[code] ?? messages.google_backend);
+      }
     }
   }, [searchParams]);
 
@@ -93,6 +118,13 @@ export default function Page() {
         </div>
 
         {activeTab === "login" ? <LoginForm /> : <RegisterForm />}
+
+        {oauthErrorMessage && activeTab === "login" && (
+          <div className="mt-4 bg-red-500/15 border border-red-500/50 text-red-100 px-4 py-3 rounded-sm text-sm text-left space-y-1">
+            <p className="font-medium">Google Sign-In unavailable</p>
+            <p className="text-primary-300">{oauthErrorMessage}</p>
+          </div>
+        )}
 
         {successMessage && activeTab === "login" && (
           <div className="mt-4 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-sm text-sm text-center">
