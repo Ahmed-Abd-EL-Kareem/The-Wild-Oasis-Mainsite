@@ -77,23 +77,25 @@ const authConfig = {
     authorized({ auth }) {
       return !!auth?.user;
     },
-    async jwt({ token, account, trigger, session, user }) {
-      // Exchange Google tokens for your API session. The Nest backend verifies the
-      // ID token's `aud` claim — it MUST use the same Google OAuth Web Client ID as
-      // AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET here, or you get "Google token verification failed".
-      if (account?.provider === "google") {
-        const googleIdToken = account.id_token;
-        if (!googleIdToken) {
-          console.error(
-            "[auth] Google account payload missing id_token; keys:",
-            account ? Object.keys(account) : []
-          );
-          throw new Error("Google sign-in did not return an ID token.");
-        }
+    /**
+     * Per integration guide: send `account.id_token` to `googleLogin` here (not only in jwt).
+     * Mutate `user` with API tokens + profile so the first `jwt` call can persist them.
+     */
+    async signIn({ user, account }) {
+      if (account?.provider !== "google") return true;
 
-        try {
-          const data = await executeGraphQL({
-            query: `
+      const idToken = account.id_token;
+      if (!idToken) {
+        console.error(
+          "[auth] Google signIn missing id_token; account keys:",
+          account ? Object.keys(account) : []
+        );
+        return false;
+      }
+
+      try {
+        const data = await executeGraphQL({
+          query: `
             mutation GoogleLogin($googleTokenInput: GoogleTokenDto!) {
               googleLogin(googleTokenInput: $googleTokenInput) {
                 accessToken
@@ -111,22 +113,42 @@ const authConfig = {
               }
             }
           `,
-            variables: {
-              googleTokenInput: {
-                token: googleIdToken,
-              },
-            },
-          });
+          variables: {
+            googleTokenInput: { token: idToken },
+          },
+        });
 
-          token.backendAccessToken = data.googleLogin.accessToken;
-          token.backendRefreshToken = data.googleLogin.refreshToken;
-          token.backendUser = data.googleLogin.user;
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Google backend login failed";
-          console.error("[auth] googleLogin mutation failed:", message);
-          throw err;
-        }
+        const bu = data.googleLogin.user;
+        user.id = String(bu.id);
+        user.name = bu.fullName ?? user.name;
+        user.email = bu.email ?? user.email;
+        user.image = bu.avatar ?? user.image;
+        user.role = bu.role;
+        user.nationality = bu.nationality ?? "";
+        user.nationalID = bu.nationalID ?? "";
+        user.accessToken = data.googleLogin.accessToken;
+        user.refreshToken = data.googleLogin.refreshToken;
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Google backend login failed";
+        console.error("[auth] googleLogin (signIn) failed:", message);
+        return false;
+      }
+    },
+    async jwt({ token, account, trigger, session, user }) {
+      if (account?.provider === "google" && user) {
+        token.backendAccessToken = user.accessToken;
+        token.backendRefreshToken = user.refreshToken;
+        token.backendUser = {
+          id: user.id,
+          fullName: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.image,
+          nationality: user.nationality ?? "",
+          nationalID: user.nationalID ?? "",
+        };
       }
 
       if (account?.provider === "credentials" && user) {
