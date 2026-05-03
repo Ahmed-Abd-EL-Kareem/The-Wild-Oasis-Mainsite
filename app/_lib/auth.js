@@ -4,6 +4,9 @@ import Credentials from "next-auth/providers/credentials";
 import { executeGraphQL } from "./graphql";
 
 const authConfig = {
+  // Required on Vercel (and other hosts behind a proxy) so the OAuth redirect URL
+  // matches your public site URL instead of an internal host.
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
