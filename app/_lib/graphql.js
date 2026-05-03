@@ -16,6 +16,59 @@ function getGraphqlEndpoint() {
     : `${RAW_API_URL}/graphql`;
 }
 
+/** Exchange a refresh token for new pair; no Bearer header (per integration guide). */
+export async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) throw new Error("Missing refresh token");
+
+  const graphqlEndpoint = getGraphqlEndpoint();
+  const response = await fetch(graphqlEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `
+        mutation RefreshToken($refreshTokenInput: RefreshTokenDto!) {
+          refreshToken(refreshTokenInput: $refreshTokenInput) {
+            accessToken
+            refreshToken
+            user {
+              id
+              email
+              role
+            }
+          }
+        }
+      `,
+      variables: { refreshTokenInput: { refreshToken } },
+    }),
+    cache: "no-store",
+  });
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const serverMessage =
+      payload?.errors?.[0]?.message ||
+      payload?.message ||
+      `GraphQL request failed with status ${response.status}`;
+    throw new Error(serverMessage);
+  }
+
+  if (payload.errors?.length) {
+    throw new Error(payload.errors[0].message || "Refresh token mutation failed");
+  }
+
+  const next = payload.data?.refreshToken;
+  if (!next?.accessToken) {
+    throw new Error("Refresh response missing accessToken");
+  }
+  return next;
+}
+
 export async function executeGraphQL({ query, variables = {}, accessToken }) {
   const graphqlEndpoint = getGraphqlEndpoint();
   const response = await fetch(graphqlEndpoint, {

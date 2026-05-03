@@ -1,7 +1,40 @@
+import { Buffer } from "node:buffer";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { executeGraphQL } from "./graphql";
+import { executeGraphQL, refreshAccessToken } from "./graphql";
+
+/** Serialize concurrent refresh mutations for the same refresh token string. */
+const refreshInFlight = new Map();
+
+function scheduleRefreshBackendTokens(refreshToken) {
+  if (!refreshToken) return Promise.reject(new Error("Missing refresh token"));
+  const pending = refreshInFlight.get(refreshToken);
+  if (pending) return pending;
+  const started = refreshAccessToken(refreshToken).finally(() => {
+    refreshInFlight.delete(refreshToken);
+  });
+  refreshInFlight.set(refreshToken, started);
+  return started;
+}
+
+function getJwtExpiryMs(accessToken) {
+  if (!accessToken || typeof accessToken !== "string") {
+    return Date.now() + 3_600_000;
+  }
+  const [, payloadSegment] = accessToken.split(".");
+  if (!payloadSegment) return Date.now() + 3_600_000;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(payloadSegment, "base64url").toString("utf8")
+    );
+    return typeof payload.exp === "number"
+      ? payload.exp * 1000
+      : Date.now() + 3_600_000;
+  } catch {
+    return Date.now() + 3_600_000;
+  }
+}
 
 /** Build canonical site origin for post-OAuth redirects (signIn returning a URL string). */
 function getAuthDeploymentOrigin() {
@@ -163,6 +196,7 @@ const authConfig = {
       if (account?.provider === "google" && user) {
         token.backendAccessToken = user.accessToken;
         token.backendRefreshToken = user.refreshToken;
+        token.accessTokenExpires = getJwtExpiryMs(user.accessToken);
         token.backendUser = {
           id: user.id,
           fullName: user.name,
@@ -177,6 +211,7 @@ const authConfig = {
       if (account?.provider === "credentials" && user) {
         token.backendAccessToken = user.accessToken;
         token.backendRefreshToken = user.refreshToken;
+        token.accessTokenExpires = getJwtExpiryMs(user.accessToken);
         token.backendUser = {
           id: user.id,
           fullName: user.name,
@@ -203,6 +238,52 @@ const authConfig = {
         };
       }
 
+      if (
+        token.backendAccessToken &&
+        token.backendRefreshToken &&
+        token.accessTokenExpires == null &&
+        !account
+      ) {
+        token.accessTokenExpires = getJwtExpiryMs(token.backendAccessToken);
+      }
+
+      if (
+        !account &&
+        token.backendRefreshToken &&
+        token.backendAccessToken &&
+        token.accessTokenExpires != null
+      ) {
+        const expiresMs = Number(token.accessTokenExpires);
+        if (
+          Number.isFinite(expiresMs) &&
+          Date.now() >= expiresMs - 60_000
+        ) {
+          try {
+            const data = await scheduleRefreshBackendTokens(
+              token.backendRefreshToken
+            );
+            token.backendAccessToken = data.accessToken;
+            if (data.refreshToken) token.backendRefreshToken = data.refreshToken;
+            token.accessTokenExpires = getJwtExpiryMs(data.accessToken);
+            delete token.error;
+            if (data.user && token.backendUser) {
+              token.backendUser = {
+                ...token.backendUser,
+                id: String(data.user.id ?? token.backendUser.id ?? ""),
+                email: data.user.email ?? token.backendUser.email,
+                role: data.user.role ?? token.backendUser.role,
+              };
+            }
+          } catch (err) {
+            console.error("[auth] refreshToken failed:", err);
+            token.error = "RefreshAccessTokenError";
+            delete token.backendAccessToken;
+            delete token.backendRefreshToken;
+            delete token.accessTokenExpires;
+          }
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -216,6 +297,7 @@ const authConfig = {
       session.user.nationalID = backendUser.nationalID || "";
       session.accessToken = token.backendAccessToken;
       session.refreshToken = token.backendRefreshToken;
+      if (token.error) session.error = token.error;
       return session;
     },
   },
