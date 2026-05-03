@@ -3,6 +3,22 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { executeGraphQL } from "./graphql";
 
+/** Build canonical site origin for post-OAuth redirects (signIn returning a URL string). */
+function getAuthDeploymentOrigin() {
+  const explicit = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+  if (explicit?.trim()) return explicit.trim().replace(/\/$/, "");
+  const vercelHost = process.env.VERCEL_URL?.trim();
+  if (vercelHost)
+    return `https://${vercelHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return "";
+}
+
+const GOOGLE_ERRORS = Object.freeze({
+  verify: "google_verify",
+  tokenMissing: "google_no_id_token",
+  backend: "google_backend",
+});
+
 const authConfig = {
   // Vercel / Auth.js: set AUTH_SECRET (preferred) or NEXTAUTH_SECRET — same value locally and in prod.
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
@@ -90,7 +106,8 @@ const authConfig = {
           "[auth] Google signIn missing id_token; account keys:",
           account ? Object.keys(account) : []
         );
-        return false;
+        const base = getAuthDeploymentOrigin();
+        return base ? `${base}/login?error=${GOOGLE_ERRORS.tokenMissing}` : false;
       }
 
       try {
@@ -133,7 +150,13 @@ const authConfig = {
         const message =
           err instanceof Error ? err.message : "Google backend login failed";
         console.error("[auth] googleLogin (signIn) failed:", message);
-        return false;
+        const base = getAuthDeploymentOrigin();
+        if (!base) return false;
+
+        const code = message.includes("verification failed")
+          ? GOOGLE_ERRORS.verify
+          : GOOGLE_ERRORS.backend;
+        return `${base}/login?error=${encodeURIComponent(code)}`;
       }
     },
     async jwt({ token, account, trigger, session, user }) {
